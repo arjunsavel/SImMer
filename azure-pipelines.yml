@@ -36,16 +36,33 @@ steps:
   - task: UsePythonVersion@0
     inputs:
       versionSpec: '$(python.version)'
+      
 
   - script: |
       python -m pip install --upgrade pip
       python3 -m pip install -e .
       pip3 install codecov
+      git lfs install --skip-smudge
     displayName: 'Install dependencies'
+    condition: not(contains(variables['Build.SourceVersionMessage'],
+      '[skip ci]'))
+      
+  - bash: |
+      MY_PAT=$(azure_token)
+      B64_PAT=$(printf ":$MY_PAT" | base64)
+      git -c http.extraHeader="Authorization: Basic ${B64_PAT}" clone https://asavel@dev.azure.com/asavel/SImMER/_git/simmer-data
+      cd simmer-data; git -c http.extraHeader="Authorization: Basic ${B64_PAT}" lfs fetch --include=dark_test.zip 
+      python3 -c "import os; print(os.listdir()); print(os.getcwd())"
+      cd ..
+    displayName: 'Fetch reference data'
     condition: not(contains(variables['Build.SourceVersionMessage'],
       '[skip ci]'))
 
   - script: |
+      python3 -c "import os; print(os.listdir()); print(os.getcwd())"
+      python3 -c "import os; print(os.listdir('..'))"
+      export REPO_DIR=$(pwd)
+      printf $(pwd)
       coverage run -m unittest discover src
     displayName: 'unit test'
     condition: not(contains(variables['Build.SourceVersionMessage'],

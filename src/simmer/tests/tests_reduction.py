@@ -28,48 +28,50 @@ import simmer.sky as sky
 # Before we get into testing, there are a few utility functions
 # that'll be used.
 
+# need to revert to git repo otherwise...
+B64_PAT = os.getenv('B64_PAT')
 
 def download_folder(folder, path=None):
     """
-    Downloads a .zip file from this projects S3 testing bucket, unzips it,
+    Downloads a .zip file from this project's git-lfs Azure testing repo, unzips it,
     and deletes the .zip file.
 
     Inputs:
         folder : (string) name of the folder to be downloaded.
     """
-
-    folder_dict = {
-        "sky_test": "hhs5w81dvok5wp8",
-        "dark_test": "ao1ug1kvlr5l4y3",
-        "flat_test": "r0gntctnfrjh5zd",
-        "PHARO_config_driver": "p3wv7l800fdqx5q",
-        "image_test": "9qwa6ojfsk1l5pq",
-        "PHARO_image_driver": "p9uivslz7hoym5c",
-        "PHARO_integration": "v8l50zm7jbrccqj",
-        "shane_quickstart": "q6m6ls2x2186u3p",
-        "readpharo_test": "l8fi3100v5flufp",
-        "config_test": "q0vqvy1ejd6rn14",
-        "search_headers": "7q20lgxae5yb3bz",
-    }
+    try:
+        if not os.path.exists('simmer-data') and B64_PAT is not None:
+            os.system(f"""git clone https://{B64_PAT}@dev.azure.com/asavel/SImMER/_git/simmer-data""")
+    except Exception as e:
+        print(e)
+        pass  # if it's already been cloned
+    print('reference dir:')
+    print(os.listdir())
+    if 'simmer-data' in os.listdir():
+        os.chdir('simmer-data')
+    
+    # only download the folder that we care about
+    if B64_PAT is not None:
+        os.system("""git -c http.extraHeader="Authorization: """ + f'Basic {B64_PAT}' + f"""" lfs pull --include={folder}""" + ".zip")
 
     def retrieve_extract(path):
         with zipfile.ZipFile(folder + ".zip", "r") as zip_ref:
             zip_ref.extractall(path)
-
-    url = f"https://www.dropbox.com/s/{folder_dict[folder]}/{folder}.zip?dl=1"
-    u = urllib.request.urlopen(url)
-    data = u.read()
-    u.close()
-
-    with open(f"{folder}.zip", "wb") as f:
-        f.write(data)
-    if path:
-        retrieve_extract(path)
-    elif "src" in os.listdir():  # if we're actually running tests
-        retrieve_extract("src/simmer/tests/")
-    else:  # we're running this in an arbitrary directory
-        retrieve_extract("")
-    os.remove(folder + ".zip")
+    try:
+        if path:
+            retrieve_extract(path)
+        if os.getenv('REPO_DIR') is not None:
+            retrieve_extract(os.getenv('REPO_DIR') + "/src/simmer/tests/")
+        elif "src" in os.listdir():  # if we're actually running tests
+            print('Retrieving to /src/simmer/tests/')
+            retrieve_extract("src/simmer/tests/")
+        else:  # we're running this in an arbitrary directory
+            print('Retrieving to ../src/simmer/tests/')
+            retrieve_extract("../src/simmer/tests/")
+    except:
+        pass
+#     os.remove(folder + ".zip")
+    os.chdir('..')
 
 
 def delete_folder(folder):
